@@ -131,7 +131,10 @@ class BinScopeGUI(QMainWindow):
 
     def open_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Open DLL or EXE", "", "Executables (*.exe *.dll)"
+            self,
+            "Open Binary",
+            "",
+            "Binary Files (*.exe *.dll *.so);;All Files (*)"
         )
         if file_path:
             self.load_file(file_path)
