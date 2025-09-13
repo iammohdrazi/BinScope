@@ -10,11 +10,11 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
 
-try:
-    import cxxfilt  # for C++ demangling
-    demangle_available = True
-except ImportError:
-    demangle_available = False
+# try:
+#     import cxxfilt  # for C++ demangling
+#     demangle_available = True
+# except ImportError:
+#     demangle_available = False
 
 
 class BinScopeGUI(QMainWindow):
@@ -94,6 +94,7 @@ class BinScopeGUI(QMainWindow):
         # Status bar
         self.status = QStatusBar()
         self.setStatusBar(self.status)
+        self.status.showMessage("Drag and drop .exe or .dll files here, or use File → Open")
 
         # Menu bar
         self.init_menu()
@@ -173,16 +174,17 @@ class BinScopeGUI(QMainWindow):
             # Exports
             exports_item = QTreeWidgetItem(self.tree_widget, ["Exports"])
             if hasattr(pe, "DIRECTORY_ENTRY_EXPORT"):
-                for i, exp in enumerate(pe.DIRECTORY_ENTRY_EXPORT.symbols, start=1):
+                for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
                     name = exp.name.decode("utf-8") if exp.name else f"Ordinal {exp.ordinal}"
-                    if demangle_available:
-                        try:
-                            name = cxxfilt.demangle(name)
-                        except Exception:
-                            pass
+                    # if demangle_available:
+                    #     try:
+                    #         name = cxxfilt.demangle(name)
+                    #     except Exception:
+                    #         pass
                     full_addr = pe.OPTIONAL_HEADER.ImageBase + exp.address
                     short_addr = hex(full_addr & 0xFFFFF)
-                    QTreeWidgetItem(exports_item, [f"{i}. {name}", short_addr])
+                    # ✅ No numbering prefix
+                    QTreeWidgetItem(exports_item, [name, short_addr])
 
             # Sections
             sections_item = QTreeWidgetItem(self.tree_widget, ["Sections"])
@@ -258,7 +260,12 @@ class BinScopeGUI(QMainWindow):
             self.info_box.setPlainText("\n".join(info_text))
 
             # Update status bar
-            self.status.showMessage(f"File loaded: {os.path.basename(file_path)} | Exports: {len(getattr(pe, 'DIRECTORY_ENTRY_EXPORT', []).symbols if hasattr(pe, 'DIRECTORY_ENTRY_EXPORT') else 0)} | Imports: {len(getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []))} | Sections: {pe.FILE_HEADER.NumberOfSections}")
+            self.status.showMessage(
+                f"File loaded: {os.path.basename(file_path)} | "
+                f"Exports: {len(getattr(pe, 'DIRECTORY_ENTRY_EXPORT', []).symbols if hasattr(pe, 'DIRECTORY_ENTRY_EXPORT') else 0)} | "
+                f"Imports: {len(getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []))} | "
+                f"Sections: {pe.FILE_HEADER.NumberOfSections}"
+            )
 
         except Exception as e:
             self.info_box.setPlainText(f"Error loading file: {e}")
