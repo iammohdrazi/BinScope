@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
+from elftools.elf.elffile import ELFFile
 
 # try:
 #     import cxxfilt  # for C++ demangling
@@ -142,10 +143,67 @@ class BinScopeGUI(QMainWindow):
     def load_file(self, file_path):
         self.current_file_path = file_path
         self.file_label.setText(f"Loaded: {os.path.basename(file_path)}")
-        self.load_pe(file_path)
-        self.load_hex(file_path)
-        # hide optional details initially after file load
-        self.toggle_details()
+
+        try:
+            if file_path.lower().endswith(('.exe', '.dll')):
+                self.load_pe(file_path)
+            elif file_path.lower().endswith('.so'):
+                self.load_elf(file_path)
+            else:
+                raise ValueError("Unsupported file type")
+
+            self.load_hex(file_path)
+            self.toggle_details()  # hide optional details initially
+        except Exception as e:
+            self.info_box.setPlainText(f"Error loading file: {e}")
+
+    def load_elf(self, file_path):
+        try:
+            with open(file_path, "rb") as f:
+                elf = ELFFile(f)
+                self.tree_widget.clear()
+                self.details_items.clear()
+
+                # Sections
+                sections_item = QTreeWidgetItem(self.tree_widget, ["Sections"])
+                for section in elf.iter_sections():
+                    QTreeWidgetItem(sections_item, [
+                        section.name,
+                        f"Addr: {hex(section['sh_addr'])}, Size: {hex(section['sh_size'])}"
+                    ])
+
+                # Symbols (if available)
+                symtab = elf.get_section_by_name('.symtab')
+                if symtab:
+                    symbols_item = QTreeWidgetItem(self.tree_widget, ["Symbols"])
+                    for symbol in symtab.iter_symbols():
+                        QTreeWidgetItem(symbols_item, [symbol.name, hex(symbol['st_value'])])
+
+                # Headers
+                headers_item = QTreeWidgetItem(self.tree_widget, ["ELF Header"])
+                hdr = elf.header
+                QTreeWidgetItem(headers_item, ["Class", str(hdr['e_ident']['EI_CLASS'])])
+                QTreeWidgetItem(headers_item, ["Machine", str(hdr['e_machine'])])
+                QTreeWidgetItem(headers_item, ["Entry Point", hex(hdr['e_entry'])])
+
+                # Raw info
+                info_text = [
+                    f"File: {file_path}",
+                    f"Format: ELF",
+                    f"Architecture: {hdr['e_machine']}",
+                    f"Entry Point: {hex(hdr['e_entry'])}",
+                    f"Sections: {elf.num_sections()}"
+                ]
+                self.info_box.setPlainText("\n".join(info_text))
+
+                self.status.showMessage(
+                    f"ELF loaded: {os.path.basename(file_path)} | "
+                    f"Sections: {elf.num_sections()}"
+                )
+
+        except Exception as e:
+            self.info_box.setPlainText(f"Error loading ELF file: {e}")
+
 
     # ----------------- Drag and Drop Handlers -----------------
     def dragEnterEvent(self, event):

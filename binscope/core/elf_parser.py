@@ -23,35 +23,35 @@ def parse_elf(filepath: str) -> BinaryInfo:
             )
         )
 
-    # Symbols
+    # Symbols (both imports/exports come from here)
     for sym in binary.symbols:
-        info.symbols.append(
-            Symbol(
-                name=sym.name,
-                addr=sym.value,
-                size=sym.size,
-                type=str(sym.type),
-                binding=str(sym.binding)
-            )
+        symbol_entry = Symbol(
+            name=sym.name,
+            addr=sym.value,
+            size=sym.size,
+            type=str(sym.type),
+            binding=str(sym.binding)
         )
+        info.symbols.append(symbol_entry)
 
-    # Imports
-    for imp in binary.imports:
-        for entry in imp.entries:
-            info.imports.append(
-                ImportEntry(
-                    name=entry.name,
-                    addr=entry.iat_value
+        # Separate imports and exports
+        if sym.name:  # only process named symbols
+            if sym.shndx == lief.ELF.SYMBOL_SECTION_INDEX.UNDEF:
+                # Undefined symbol → import
+                info.imports.append(
+                    ImportEntry(
+                        name=sym.name,
+                        addr=0  # imports don’t have a real address
+                    )
                 )
-            )
-
-    # Exports
-    for exp in binary.exported_functions:
-        info.exports.append(
-            ExportEntry(
-                name=exp.name,
-                addr=exp.address
-            )
-        )
+            else:
+                # Defined global function → export
+                if sym.type == lief.ELF.SYMBOL_TYPES.FUNC:
+                    info.exports.append(
+                        ExportEntry(
+                            name=sym.name,
+                            addr=sym.value
+                        )
+                    )
 
     return info
